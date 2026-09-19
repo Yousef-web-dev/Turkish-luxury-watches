@@ -151,7 +151,7 @@ export default function AboutClient() {
         </div>
         <div className="lg:col-span-6">
           <IstanbulPhoto
-            src="https://images.unsplash.com/photo-1570939274717-7eda259b50ed?auto=format&fit=crop&w=1400&q=80"
+            src="https://images.unsplash.com/photo-1636537511494-c3e558e0702b?w=500&auto=format&fit=crop&q=60&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxzZWFyY2h8Nnx8aXN0YW5idWx8ZW58MHx8MHx8fDA%3D"
             alt="Rooftops and minarets of İstanbul in warm evening light"
             className="aspect-[5/4] rounded-3xl border border-gold/20"
           />
