@@ -206,7 +206,8 @@ export default function HeroDial({ className }) {
           <circle cx={CX} cy={CX - 196} r="7" fill="none" stroke="#e5786d" strokeWidth="2" />
         </g>
         
-      </g>
+      </g>  
+      
       <circle cx={CX} cy={CX} r="11" fill="url(#hd-gold)" />
       <circle cx={CX} cy={CX} r="4" fill="#0a0f1d" />
     </svg>
