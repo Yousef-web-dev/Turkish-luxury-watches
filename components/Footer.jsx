@@ -63,6 +63,7 @@ export default function Footer() {
               ["/services", "Engraving and gift wrap"],
               ["/about", "Our heritage"],
               ["/wishlist", "Wishlist"],
+              ["/account", "My account"],
             ].map(([href, label]) => (
               <li key={href}>
                 <Link href={href} className="transition-colors hover:text-gold-soft">

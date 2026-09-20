@@ -1,10 +1,21 @@
 "use client";
 
-import { createContext, useCallback, useContext, useEffect, useMemo, useReducer, useRef, useState } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useReducer,
+  useRef,
+  useState,
+} from "react";
 import { getProduct } from "@/lib/products";
 import { GIFT_WRAP_FEE, MAX_PER_ORDER, ENGRAVING_MAX_CHARS } from "@/lib/pricing";
+import { useAuth } from "@/context/AuthProvider";
 
 const STORAGE_KEY = "bosphorus-horology:v1";
+const GUEST_KEY = `${STORAGE_KEY}:guest`;
 
 const initial = { cart: [], wishlist: [], options: { giftWrap: false, engraving: "" } };
 
@@ -60,49 +71,93 @@ function reducer(state, action) {
   }
 }
 
+/* ----- persistence helpers: bag and wishlist are stored per account ----- */
+function normalize(parsed) {
+  const p = parsed || {};
+  return {
+    cart: (p.cart ?? [])
+      .filter((l) => getProduct(l.id))
+      .map((l) => ({ id: l.id, qty: Math.max(1, Math.min(MAX_PER_ORDER, Number(l.qty) || 1)) })),
+    wishlist: (p.wishlist ?? []).filter((id) => getProduct(id)),
+    options: {
+      giftWrap: Boolean(p.options?.giftWrap),
+      engraving: String(p.options?.engraving ?? "").slice(0, ENGRAVING_MAX_CHARS),
+    },
+  };
+}
+
+function load(key) {
+  try {
+    const raw = localStorage.getItem(key);
+    return raw ? normalize(JSON.parse(raw)) : null;
+  } catch {
+    return null;
+  }
+}
+
+/** When a guest logs in, fold their bag and wishlist into the account's. */
+function merge(base, extra) {
+  const cart = base.cart.map((l) => ({ ...l }));
+  for (const l of extra.cart) {
+    const ex = cart.find((x) => x.id === l.id);
+    const max = maxQtyFor(getProduct(l.id));
+    if (ex) ex.qty = Math.min(max, ex.qty + l.qty);
+    else cart.push({ id: l.id, qty: Math.min(max, l.qty) });
+  }
+  return {
+    cart,
+    wishlist: [...new Set([...base.wishlist, ...extra.wishlist])],
+    options: base.options.giftWrap || base.options.engraving ? base.options : extra.options,
+  };
+}
+
 const StoreContext = createContext(null);
 
 export function StoreProvider({ children }) {
+  const { user, ready: authReady } = useAuth();
+  const userId = user ? user.id : null;
+  const storageKey = userId ? `${STORAGE_KEY}:${userId}` : GUEST_KEY;
+
   const [state, dispatch] = useReducer(reducer, initial);
   const [ready, setReady] = useState(false);
   const [toast, setToast] = useState(null);
   const stateRef = useRef(state);
   stateRef.current = state;
+  const skipPersist = useRef(false);
 
-  /* hydrate from localStorage (client only, avoids SSR mismatch) */
+  /* load the right bag + wishlist whenever the signed-in account changes */
   useEffect(() => {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        dispatch({
-          type: "hydrate",
-          state: {
-            cart: (parsed.cart ?? [])
-              .filter((l) => getProduct(l.id))
-              .map((l) => ({ id: l.id, qty: Math.max(1, Math.min(MAX_PER_ORDER, Number(l.qty) || 1)) })),
-            wishlist: (parsed.wishlist ?? []).filter((id) => getProduct(id)),
-            options: {
-              giftWrap: Boolean(parsed.options?.giftWrap),
-              engraving: String(parsed.options?.engraving ?? "").slice(0, ENGRAVING_MAX_CHARS),
-            },
-          },
-        });
+    if (!authReady) return;
+    let next = load(storageKey) ?? initial;
+    if (userId) {
+      const guest = load(GUEST_KEY);
+      if (guest && (guest.cart.length || guest.wishlist.length)) {
+        next = merge(next, guest);
+        try {
+          localStorage.removeItem(GUEST_KEY);
+        } catch {
+          /* ignore */
+        }
       }
-    } catch {
-      /* storage unavailable or corrupted, start fresh */
     }
+    skipPersist.current = true;
+    dispatch({ type: "hydrate", state: next });
     setReady(true);
-  }, []);
+  }, [authReady, storageKey, userId]);
 
+  /* save on every change (the first run after a load is skipped) */
   useEffect(() => {
     if (!ready) return;
+    if (skipPersist.current) {
+      skipPersist.current = false;
+      return;
+    }
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+      localStorage.setItem(storageKey, JSON.stringify(state));
     } catch {
       /* ignore quota / privacy-mode errors */
     }
-  }, [state, ready]);
+  }, [state, ready, storageKey]);
 
   /* toast */
   const notify = useCallback((message) => setToast({ key: Date.now(), message }), []);

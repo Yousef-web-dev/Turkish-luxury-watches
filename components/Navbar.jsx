@@ -1,19 +1,20 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
+import { usePathname, useRouter } from "next/navigation";
+import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { Heart, Menu, ShoppingBag, X } from "lucide-react";
+import { Heart, LogOut, Menu, Package, ShoppingBag, User, UserRound, X } from "lucide-react";
 import { useStore } from "@/context/StoreProvider";
+import { useAuth } from "@/context/AuthProvider";
 import { cn } from "@/lib/format";
 import Logo from "./Logo";
 
 const links = [
   { href: "/", label: "Home" },
-  { href: "/about", label: "About Us" },
   { href: "/products", label: "Products" },
   { href: "/services", label: "Services" },
+  { href: "/about", label: "About Us" },
   { href: "/contact", label: "Contact Us" },
 ];
 
@@ -36,13 +37,89 @@ function Badge({ count }) {
   );
 }
 
+/** Signed-in menu: avatar initial with account shortcuts. */
+function AccountMenu({ user, onLogout }) {
+  const pathname = usePathname();
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+
+  useEffect(() => setOpen(false), [pathname]);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e) => ref.current && !ref.current.contains(e.target) && setOpen(false);
+    const onKey = (e) => e.key === "Escape" && setOpen(false);
+    document.addEventListener("mousedown", onDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
+  return (
+    <div ref={ref} className="relative hidden lg:block">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        aria-label={`Account menu for ${user.name}`}
+        className="grid h-11 w-11 place-items-center rounded-full border border-gold/50 bg-gold/10 font-display text-xl text-gold-soft transition-colors hover:bg-gold/20"
+      >
+        {user.name.trim().charAt(0).toUpperCase()}
+      </button>
+      <AnimatePresence>
+        {open && (
+          <motion.div
+            role="menu"
+            initial={{ opacity: 0, y: -8, scale: 0.98 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -8, scale: 0.98 }}
+            transition={{ duration: 0.2 }}
+            className="glass glass-gold absolute right-0 top-14 w-64 overflow-hidden rounded-2xl bg-midnight/90 shadow-lift"
+          >
+            <div className="border-b border-white/10 px-4 py-3">
+              <p className="truncate font-semibold">{user.name}</p>
+              <p className="truncate text-sm text-steel">{user.email}</p>
+            </div>
+            <Link role="menuitem" href="/account" className="flex items-center gap-3 px-4 py-3 text-mist transition-colors hover:bg-white/5 hover:text-gold-soft">
+              <User size={16} /> My account
+            </Link>
+            <Link role="menuitem" href="/account" className="flex items-center gap-3 px-4 py-3 text-mist transition-colors hover:bg-white/5 hover:text-gold-soft">
+              <Package size={16} /> My orders
+            </Link>
+            <button
+              type="button"
+              role="menuitem"
+              onClick={onLogout}
+              className="flex w-full items-center gap-3 border-t border-white/10 px-4 py-3 text-left text-mist transition-colors hover:bg-white/5 hover:text-danger"
+            >
+              <LogOut size={16} /> Log out
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
 export default function Navbar() {
   const pathname = usePathname();
-  const { cartCount, wishlistCount } = useStore();
+  const router = useRouter();
+  const { cartCount, wishlistCount, notify } = useStore();
+  const { user, ready, logOut } = useAuth();
   const [scrolled, setScrolled] = useState(false);
   const [open, setOpen] = useState(false);
 
   const isActive = (href) => (href === "/" ? pathname === "/" : pathname.startsWith(href));
+
+  function handleLogout() {
+    logOut();
+    setOpen(false);
+    notify("You have been logged out");
+    if (pathname.startsWith("/account")) router.replace("/");
+  }
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 24);
@@ -117,6 +194,23 @@ export default function Navbar() {
               <ShoppingBag size={19} />
               <Badge count={cartCount} />
             </Link>
+
+            {ready && user && <AccountMenu user={user} onLogout={handleLogout} />}
+            {ready && !user && (
+              <>
+                <Link href="/login" className="btn btn-ghost hidden !px-5 !py-2.5 text-sm lg:inline-flex">
+                  Log in
+                </Link>
+                <Link
+                  href="/login"
+                  aria-label="Log in or create an account"
+                  className="grid h-11 w-11 place-items-center rounded-full border border-white/10 text-ivory transition-colors hover:border-gold/60 hover:text-gold-soft lg:hidden"
+                >
+                  <UserRound size={19} />
+                </Link>
+              </>
+            )}
+
             <button
               type="button"
               onClick={() => setOpen(true)}
@@ -151,7 +245,7 @@ export default function Navbar() {
               animate={{ x: 0 }}
               exit={{ x: "100%" }}
               transition={{ duration: 0.55, ease: [0.22, 1, 0.36, 1] }}
-              className="glass glass-gold fixed inset-y-0 right-0 z-[56] flex w-[min(24rem,90vw)] flex-col bg-midnight/90 p-6"
+              className="glass glass-gold fixed inset-y-0 right-0 z-[56] flex w-[min(24rem,90vw)] flex-col overflow-y-auto bg-midnight/90 p-6"
             >
               <div className="flex items-center justify-between">
                 <Logo />
@@ -165,7 +259,7 @@ export default function Navbar() {
                 </button>
               </div>
 
-              <ul className="mt-10 flex flex-col">
+              <ul className="mt-8 flex flex-col">
                 {links.map((l, i) => (
                   <motion.li
                     key={l.href}
@@ -195,7 +289,37 @@ export default function Navbar() {
                 </Link>
               </div>
 
-              <p className="mt-auto text-sm text-steel">
+              {/* account */}
+              <div className="mt-6 rounded-2xl border border-white/10 p-4">
+                {user ? (
+                  <>
+                    <p className="truncate font-semibold">{user.name}</p>
+                    <p className="truncate text-sm text-steel">{user.email}</p>
+                    <div className="mt-4 grid grid-cols-2 gap-3">
+                      <Link href="/account" className="btn btn-ghost !px-4 !py-2.5 text-sm">
+                        My account
+                      </Link>
+                      <button type="button" onClick={handleLogout} className="btn btn-ghost !px-4 !py-2.5 text-sm">
+                        <LogOut size={15} /> Log out
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <p className="text-mist">Log in to keep your bag, wishlist and orders.</p>
+                    <div className="mt-4 grid grid-cols-2 gap-3">
+                      <Link href="/login" className="btn btn-gold !px-4 !py-2.5 text-sm">
+                        Log in
+                      </Link>
+                      <Link href="/signup" className="btn btn-ghost !px-4 !py-2.5 text-sm">
+                        Create account
+                      </Link>
+                    </div>
+                  </>
+                )}
+              </div>
+
+              <p className="mt-auto pt-8 text-sm text-steel">
                 Boutique in Nişantaşı, İstanbul.
                 <br />
                 Open Monday to Saturday, 10:00 to 20:00.

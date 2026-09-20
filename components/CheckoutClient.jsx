@@ -1,10 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { ArrowLeft, Check, CheckCircle2, CreditCard, Lock } from "lucide-react";
 import { useStore } from "@/context/StoreProvider";
+import { useAuth } from "@/context/AuthProvider";
 import { GIFT_WRAP_FEE, shippingFor } from "@/lib/pricing";
 import { cn, formatPrice } from "@/lib/format";
 import Field from "./ui/Field";
@@ -165,12 +166,24 @@ function Summary({ lines, subtotal, giftWrapFee, shipping, engraving }) {
 
 export default function CheckoutClient() {
   const { ready, lines, subtotal, giftWrapFee, options, clearCart } = useStore();
+  const { user, addOrder } = useAuth();
   const [step, setStep] = useState(0);
   const [ship, setShip] = useState(emptyShipping);
   const [pay, setPay] = useState(emptyPayment);
   const [errors, setErrors] = useState({});
   const [processing, setProcessing] = useState(false);
   const [placed, setPlaced] = useState(null);
+
+  // signed-in customers get their details filled in
+  useEffect(() => {
+    if (!user) return;
+    setShip((s) => ({
+      ...s,
+      fullName: s.fullName || user.name,
+      email: s.email || user.email,
+      phone: s.phone || user.phone || "",
+    }));
+  }, [user]);
 
   const shippingCost = shippingFor(ship.region, subtotal);
   const total = subtotal + giftWrapFee + shippingCost;
@@ -197,12 +210,26 @@ export default function CheckoutClient() {
     setProcessing(true);
     // Simulation only: no payment is taken and nothing is sent to a server.
     setTimeout(() => {
+      const orderId = `BH-${Date.now().toString(36).toUpperCase().slice(-6)}`;
+      // logged-in customers keep the order in their account
+      if (user) {
+        addOrder({
+          id: orderId,
+          date: new Date().toISOString(),
+          status: "Confirmed",
+          items: lines.map(({ product: p, qty }) => ({ id: p.id, title: p.title, price: p.price, qty })),
+          total,
+          region: ship.region,
+          shipTo: ship.region === "TR" ? `${ship.district}, ${ship.province}` : `${ship.city}, ${ship.country}`,
+        });
+      }
       setPlaced({
-        order: `BH-${Date.now().toString(36).toUpperCase().slice(-6)}`,
+        order: orderId,
         email: ship.email,
         region: ship.region,
         lines,
         total,
+        saved: Boolean(user),
       });
       clearCart();
       setProcessing(false);
@@ -248,7 +275,12 @@ export default function CheckoutClient() {
           </ul>
           <p className="mt-4 text-sm text-steel">This is a demonstration checkout. No payment was taken.</p>
           <div className="mt-8 flex flex-wrap justify-center gap-3">
-            <Link href="/products" className="btn btn-gold">
+            {placed.saved && (
+              <Link href="/account" className="btn btn-gold">
+                View your orders
+              </Link>
+            )}
+            <Link href="/products" className={placed.saved ? "btn btn-ghost" : "btn btn-gold"}>
               Continue browsing
             </Link>
             <Link href="/" className="btn btn-ghost">
@@ -277,6 +309,25 @@ export default function CheckoutClient() {
   return (
     <div className="container-x pb-8 pt-32 sm:pt-40">
       <h1 className="font-display text-5xl sm:text-6xl">Checkout</h1>
+      <p className="mt-3 text-mist">
+        {user ? (
+          <>
+            Signed in as <span className="text-ivory">{user.email}</span>. Your order will be saved to your account.
+          </>
+        ) : (
+          <>
+            Checking out as a guest.{" "}
+            <Link href="/login?next=/checkout" className="link-gold">
+              Log in
+            </Link>{" "}
+            or{" "}
+            <Link href="/signup?next=/checkout" className="link-gold">
+              create an account
+            </Link>{" "}
+            to save your details and orders.
+          </>
+        )}
+      </p>
 
       {/* stepper (a true sequence, so numbering is meaningful) */}
       <ol className="mt-8 flex items-center gap-3" aria-label="Checkout progress">

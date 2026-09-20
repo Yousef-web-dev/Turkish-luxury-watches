@@ -4,10 +4,12 @@ import Link from "next/link";
 import { AnimatePresence, motion } from "framer-motion";
 import { Heart, ShoppingBag } from "lucide-react";
 import { useStore } from "@/context/StoreProvider";
+import { useAuth } from "@/context/AuthProvider";
 import ProductCard from "./ProductCard";
 
 export default function WishlistClient() {
   const { ready, wishlist, addToCart } = useStore();
+  const { user, ready: authReady } = useAuth();
   const available = wishlist.filter((p) => p.stock !== "out-of-stock");
 
   return (
@@ -32,6 +34,19 @@ export default function WishlistClient() {
           </button>
         )}
       </div>
+
+      {ready && authReady && !user && wishlist.length > 0 && (
+        <p className="mt-6 rounded-xl border border-gold/30 bg-gold/8 px-4 py-3 text-sm text-mist">
+          <Link href="/login?next=/wishlist" className="link-gold">
+            Log in
+          </Link>{" "}
+          or{" "}
+          <Link href="/signup?next=/wishlist" className="link-gold">
+            create an account
+          </Link>{" "}
+          to keep this wishlist with your account.
+        </p>
+      )}
 
       {!ready ? (
         <p className="mt-10 text-mist">Loading your wishlist…</p>
