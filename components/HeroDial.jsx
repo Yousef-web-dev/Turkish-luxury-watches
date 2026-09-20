@@ -198,13 +198,14 @@ export default function HeroDial({ className }) {
         <g ref={minRef}>
           <path
             d={`M${CX - 6} ${CX + 28} L${CX - 3.5} ${CX - 208} L${CX} ${CX - 236} L${CX + 3.5} ${CX - 208} L${CX + 6} ${CX + 28} Z`}
-            fill="#f2efe6"
+            fill="#f2efe6"    
           />
         </g>
         <g ref={secRef}>
           <rect x={CX - 1.2} y={CX - 262} width="2.400" height="320" fill="#e5786d" />
           <circle cx={CX} cy={CX - 196} r="7" fill="none" stroke="#e5786d" strokeWidth="2" />
         </g>
+        
       </g>
       <circle cx={CX} cy={CX} r="11" fill="url(#hd-gold)" />
       <circle cx={CX} cy={CX} r="4" fill="#0a0f1d" />
